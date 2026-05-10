@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파생 질문 브랜치 UX — HID 프로토타입</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --p: #7C3AED;
+  --p-light: #EDE9FE;
+  --branch: #F59E0B;
+  --branch-bg: #FFFBEB;
+  --branch-border: #FDE68A;
+  --done: #10B981;
+  --done-bg: #D1FAE5;
+  --text: #0D0D0D;
+  --muted: #8E8EA0;
+  --border: #E5E7EB;
+  --sb-bg: #F9FAFB;
+  --sb-hover: rgba(0,0,0,.04);
+  --sb-active: rgba(124,58,237,.08);
+  --sb-text: #111827;
+  --sb-muted: #6B7280;
+  --chat-bg: #FFFFFF;
+  --panel-bg: #F7F7FF;
+}
+html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple SD Gothic Neo',BlinkMacSystemFont,sans-serif; font-size: 14px; color: var(--text); }
+
+/* ══ LAYOUT ROOT ══ */
+.app { display: flex; height: 100vh; overflow: hidden; background: var(--sb-bg); }
+
+/* ══ SIDEBAR ══ */
+.sidebar {
+  width: 260px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--sb-bg); color: var(--sb-text);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.sb-top { padding: 10px 10px 6px; display: flex; flex-direction: column; gap: 2px; }
+.sb-new-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 14px; color: var(--sb-text);
+  transition: background .12s;
+}
+.sb-new-btn:hover { background: var(--sb-hover); }
+.sb-new-btn .icon { font-size: 16px; opacity: .8; }
+.sb-search {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 14px; color: var(--sb-muted);
+  transition: background .12s;
+}
+.sb-search:hover { background: var(--sb-hover); }
+
+.sb-body { flex: 1; overflow-y: auto; padding: 4px 10px; }
+.sb-body::-webkit-scrollbar { width: 4px; }
+.sb-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,.1); border-radius: 4px; }
+.sb-section-label {
+  font-size: 11px; font-weight: 600; color: var(--sb-muted);
+  padding: 8px 4px 4px; letter-spacing: .04em;
+}
+.sb-item {
+  display: flex; align-items: center;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--sb-text);
+  transition: background .1s; gap: 8px;
+  white-space: nowrap; overflow: hidden;
+}
+.sb-item:hover { background: var(--sb-hover); }
+.sb-item.active { background: var(--sb-active); }
+.sb-item .sb-item-txt { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+.sb-bottom {
+  padding: 10px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.sb-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  transition: background .1s;
+}
+.sb-user:hover { background: var(--sb-hover); }
+.sb-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, #7C3AED, #C084FC);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.sb-user-name { font-size: 13px; color: var(--sb-text); flex: 1; }
+.sb-user-plan { font-size: 11px; color: var(--sb-muted); }
+.sb-upgrade {
+  background: white; border: 1px solid var(--border);
+  color: var(--sb-text); padding: 7px 12px; border-radius: 8px;
+  font-size: 13px; cursor: pointer; text-align: center;
+  transition: background .12s;
+}
+.sb-upgrade:hover { background: #F3F4F6; }
+
+/* ══ CENTER + RIGHT WRAPPER ══ */
+.center-wrap {
+  flex: 1; display: flex; flex-direction: column;
+  background: var(--chat-bg); overflow: hidden;
+}
+
+/* ══ TOP BAR ══ */
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: white; z-index: 50; position: relative;
+}
+.session-title {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 15px; font-weight: 600;
+  padding: 3px 8px; border-radius: 7px;
+  transition: background .12s; user-select: none; cursor: default;
+}
+.after-mode .session-title { cursor: pointer; }
+.after-mode .session-title:hover { background: var(--p-light); color: var(--p); }
+.session-title .arr { font-size: 10px; opacity: .45; }
+
+/* TOC */
+.toc {
+  position: absolute; top: calc(100% + 5px); left: 18px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.12);
+  width: 340px; z-index: 200; overflow: hidden;
+  opacity: 0; pointer-events: none;
+  transform: translateY(-4px); transition: opacity .15s, transform .15s;
+}
+.toc.show { opacity: 1; pointer-events: all; transform: translateY(0); }
+.toc-hd { padding: 8px 14px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.toc-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #F3F4F6; transition: background .1s; }
+.toc-row:last-child { border-bottom: none; }
+.toc-row:hover { background: #F9FAFB; }
+.toc-num { width: 18px; font-size: 11px; font-weight: 700; flex-shrink: 0; color: var(--muted); }
+.toc-row.branched .toc-num { color: var(--branch); }
+.toc-row.done .toc-num { color: var(--done); }
+.toc-row.done .toc-txt { color: #9CA3AF; text-decoration: line-through; }
+.toc-txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.topbar-spacer { flex: 1; }
+.hint-text { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
+.hint-text b { color: var(--text); }
+.mode-toggle { display: flex; background: #F3F4F6; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.mode-btn { padding: 5px 16px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .15s; }
+.mode-btn.active { background: var(--p); color: white; }
+
+/* ══ CONTENT AREA (chat + right panel) ══ */
+.content-area { flex: 1; display: flex; overflow: hidden; }
+
+/* ══ CHAT PANEL ══ */
+.chat-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-width: 0; background: var(--chat-bg); }
+.messages { flex: 1; overflow-y: auto; padding: 28px 20% 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
+
+/* ══ MESSAGES ══ */
+.msg { display: flex; flex-direction: column; gap: 4px; }
+.msg.user { align-items: flex-end; }
+.msg.ai   { align-items: flex-start; }
+.msg-lbl  { font-size: 11px; color: var(--muted); padding: 0 4px; }
+.msg-wrap { position: relative; max-width: 80%; }
+.msg.user .msg-wrap { max-width: 72%; }
+.bubble { padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.7; }
+.msg.user .bubble { background: #F3F4F6; color: var(--text); border-bottom-right-radius: 5px; }
+.msg.ai   .bubble { background: white; color: var(--text); border-bottom-left-radius: 5px; }
+.msg.ai.focused .bubble { outline: 2px solid var(--p); outline-offset: 2px; box-shadow: 0 0 0 4px var(--p-light); }
+.msg.ai.new-before .bubble { background: var(--branch-bg); outline: 1.5px solid var(--branch-border); }
+
+/* branch button */
+.branch-open-btn {
+  position: absolute; bottom: -10px; right: 8px;
+  display: none; align-items: center; gap: 4px;
+  background: var(--p); color: white; border: none; border-radius: 20px;
+  padding: 4px 11px; font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; z-index: 10;
+  box-shadow: 0 2px 10px rgba(124,58,237,.35);
+  transition: transform .1s;
+}
+.branch-open-btn:hover { transform: scale(1.04); }
+.after-mode .msg.ai .msg-wrap:hover .branch-open-btn { display: flex; }
+
+/* branch badge */
+.branch-badge {
+  display: none; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 9px; border-radius: 20px; margin-top: 5px;
+}
+.after-mode .branch-badge { display: flex; }
+.branch-badge.active { color: var(--branch); background: var(--branch-bg); border: 1px solid var(--branch-border); }
+.branch-badge.done   { color: var(--done);   background: var(--done-bg); }
+
+/* AI action row (copy, regen, etc.) */
+.msg-actions {
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px 2px; opacity: 0; transition: opacity .15s;
+}
+.msg.ai:hover .msg-actions { opacity: 1; }
+.msg-action-btn {
+  width: 28px; height: 28px; border-radius: 6px; border: none;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: background .1s;
+}
+.msg-action-btn:hover { background: #F3F4F6; color: var(--text); }
+
+/* ══ REPLY TOOLTIP ══ */
+.reply-tip {
+  position: fixed; background: #1F2937; color: white;
+  padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  cursor: pointer; z-index: 9999; display: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3); pointer-events: none;
+}
+.reply-tip.show { display: block; pointer-events: all; }
+
+/* ══ CHAT INPUT ══ */
+.chat-input-wrap {
+  padding: 14px 20%; flex-shrink: 0; background: white;
+  border-top: 1px solid var(--border);
+}
+.src-attach {
+  display: none; align-items: center; gap: 6px;
+  background: var(--p-light); border: 1px solid #C4B5FD;
+  border-radius: 8px; padding: 6px 10px;
+  font-size: 12px; color: var(--p); margin-bottom: 7px;
+}
+.src-attach.show { display: flex; }
+.src-attach-txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-attach-x { cursor: pointer; font-size: 15px; line-height: 1; opacity: .7; }
+.src-attach-x:hover { opacity: 1; }
+.input-box {
+  display: flex; align-items: flex-end; gap: 8px;
+  border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 10px 12px 10px 16px; background: white;
+  transition: border-color .2s; box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.input-box:focus-within { border-color: var(--p); }
+.chat-input {
+  flex: 1; border: none; outline: none;
+  font-size: 14px; font-family: inherit; resize: none;
+  min-height: 24px; max-height: 120px; line-height: 1.6;
+  background: transparent;
+}
+.send-btn {
+  width: 34px; height: 34px; border-radius: 10px; border: none;
+  background: var(--p); color: white; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s;
+}
+.send-btn:hover { background: #6D28D9; }
+.send-btn:disabled { background: #E5E7EB; color: #9CA3AF; cursor: default; }
+
+/* ══ RIGHT PANEL ══ */
+.right-panel {
+  width: 0; overflow: hidden; display: flex; flex-direction: column;
+  background: var(--panel-bg); border-left: 1px solid var(--border);
+  transition: width .28s ease; flex-shrink: 0;
+}
+.right-panel.open { width: 360px; }
+
+.btabs {
+  display: flex; background: white; border-bottom: 1px solid var(--border);
+  overflow-x: auto; padding: 0 12px; flex-shrink: 0;
+}
+.btabs::-webkit-scrollbar { display: none; }
+.btab {
+  padding: 10px 13px; font-size: 13px; cursor: pointer;
+  white-space: nowrap; border-bottom: 2px solid transparent;
+  color: var(--muted); display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+}
+.btab.active { border-bottom-color: var(--p); color: var(--p); font-weight: 600; }
+.btab .tx { font-size: 14px; opacity: .4; line-height: 1; }
+.btab .tx:hover { opacity: 1; }
+
+.branch-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.src-ctx { padding: 12px 14px; border-bottom: 1px solid var(--border); background: white; flex-shrink: 0; }
+.src-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--branch); margin-bottom: 5px; }
+.src-text {
+  font-size: 13px; line-height: 1.55;
+  background: var(--branch-bg); border: 1px solid var(--branch-border);
+  border-radius: 8px 8px 0 0; padding: 8px 10px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.src-text.expanded { display: block; overflow: visible; }
+.src-more-btn {
+  width: 100%; font-size: 11px; font-weight: 600; color: var(--branch);
+  background: var(--branch-bg); border: 1px solid var(--branch-border); border-top: none;
+  border-radius: 0 0 8px 8px; padding: 3px 10px; cursor: pointer; text-align: center;
+}
+.src-more-btn:hover { filter: brightness(.96); }
+
+.branch-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.bmsg { display: flex; flex-direction: column; gap: 3px; }
+.bmsg.user { align-items: flex-end; }
+.bmsg.ai   { align-items: flex-start; }
+.bbubble { max-width: 92%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.6; }
+.bmsg.user .bbubble { background: #F3F4F6; color: var(--text); border-bottom-right-radius: 3px; }
+.bmsg.ai   .bbubble { background: white; border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+
+.branch-actions { padding: 10px 14px; border-top: 1px solid var(--border); background: white; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.branch-input-box {
+  display: flex; align-items: flex-end; gap: 8px;
+  border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 8px 10px 8px 14px; background: white;
+  transition: border-color .2s; box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.branch-input-box:focus-within { border-color: var(--p); }
+.branch-input {
+  flex: 1; border: none; outline: none;
+  font-size: 13px; font-family: inherit; resize: none;
+  min-height: 22px; max-height: 80px; line-height: 1.5; background: transparent;
+}
+.branch-send { width: 30px; height: 30px; border-radius: 8px; border: none; background: var(--p); color: white; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.confirm-btn { background: var(--done); color: white; border: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; transition: background .15s; }
+.confirm-btn:hover { background: #059669; }
+
+/* ══ TYPING ══ */
+.typing { display: flex; gap: 4px; padding: 6px 2px; }
+.typing span { width: 6px; height: 6px; background: #9CA3AF; border-radius: 50%; animation: bounce 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce {
+  0%,60%,100% { transform: translateY(0); opacity: .5; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<div class="sidebar">
+  <div class="sb-top">
+    <div class="sb-new-btn"><span class="icon">✏️</span> 새 채팅</div>
+    <div class="sb-search"><span>🔍</span> 채팅 검색</div>
+  </div>
+
+  <div class="sb-body">
+    <div class="sb-section-label">최근</div>
+    <div class="sb-item active"><span class="sb-item-txt">부르디외 — 아비투스와 장 이론</span></div>
+    <div class="sb-item"><span class="sb-item-txt">푸코의 권력-지식 개념</span></div>
+    <div class="sb-item"><span class="sb-item-txt">하버마스 — 의사소통적 합리성</span></div>
+    <div class="sb-item"><span class="sb-item-txt">롤스의 정의론 핵심 개념</span></div>
+    <div class="sb-item"><span class="sb-item-txt">헤겔 변증법 기초 다지기</span></div>
+    <div class="sb-section-label" style="margin-top:10px">이전 7일</div>
+    <div class="sb-item"><span class="sb-item-txt">사회계약론 — 홉스·로크·루소 비교</span></div>
+    <div class="sb-item"><span class="sb-item-txt">베버의 관료제와 합리화</span></div>
+    <div class="sb-item"><span class="sb-item-txt">뒤르켐의 아노미 개념</span></div>
+    <div class="sb-section-label" style="margin-top:10px">이전 30일</div>
+    <div class="sb-item"><span class="sb-item-txt">아렌트 — 공적 영역과 사적 영역</span></div>
+    <div class="sb-item"><span class="sb-item-txt">마르크스 소외론 이해</span></div>
+    <div class="sb-item"><span class="sb-item-txt">구조주의와 후기구조주의 차이</span></div>
+  </div>
+
+  <div class="sb-bottom">
+    <div class="sb-user">
+      <div class="sb-avatar">M</div>
+      <div>
+        <div class="sb-user-name">민준 송</div>
+        <div class="sb-user-plan">Free</div>
+      </div>
+    </div>
+    <div class="sb-upgrade">업그레이드</div>
+  </div>
+</div>
+
+<!-- ══ CENTER WRAP ══ -->
+<div class="center-wrap">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <span class="session-title" id="session-title"
+      onmouseenter="onTocEnter()" onmouseleave="onTocLeave()">
+      부르디외 — 아비투스와 장 이론 <span class="arr">▾</span>
+    </span>
+    <div class="toc" id="toc"
+      onmouseenter="onTocEnter()" onmouseleave="onTocLeave()">
+      <div class="toc-hd">질문 목차</div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <span class="hint-text" id="hint-text"></span>
+    <div class="mode-toggle">
+      <button class="mode-btn" id="btn-before" onclick="setMode('before')">Before</button>
+      <button class="mode-btn active" id="btn-after" onclick="setMode('after')">After</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content-area">
+
+    <!-- CHAT PANEL -->
+    <div class="chat-panel" id="chat-panel">
+      <div class="messages" id="messages"></div>
+      <div class="chat-input-wrap">
+        <div class="src-attach" id="src-attach">
+          <span>📎</span>
+          <span class="src-attach-txt" id="src-attach-txt"></span>
+          <span class="src-attach-x" onclick="clearSrcAttach()">✕</span>
+        </div>
+        <div class="input-box">
+          <textarea class="chat-input" id="main-input"
+            placeholder="메시지를 입력하세요…"
+            onkeydown="onMainKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMain()">↑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel" id="right-panel">
+      <div class="btabs" id="btabs"></div>
+      <div class="branch-body" id="branch-body"></div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- REPLY TOOLTIP -->
+<div class="reply-tip" id="reply-tip">✦ 답글하기</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+
+const SEED = [
+  { id:1, role:'user', text:'부르디외 텍스트 읽고 있는데, 아비투스가 정확히 뭔지 모르겠어. "내면화된 구조"라는 표현은 알겠는데 그게 어떻게 행동으로 연결되는 건지.' },
+  { id:2, role:'ai',
+    text:'아비투스(habitus)는 개인이 사회화 과정에서 몸에 새긴 지속적인 성향 체계야.\n\n부르디외가 쓴 표현이 핵심이야 — "구조화된 구조이면서 동시에 구조화하는 구조". 두 방향이 있어:\n\n① 구조화된 구조: 계급·교육·환경 같은 사회 조건이 몸과 인식 방식에 새겨진 흔적\n② 구조화하는 구조: 그 새겨진 성향이 다시 행동·판단·취향을 만들어 냄\n\n예를 들어, 어릴 때부터 클래식 음악이 흐르는 집에서 자란 사람은 "클래식을 좋아하기로 결정"하지 않아도 자연스럽게 그 취향을 갖게 돼. 그 선호 자체가 아비투스야.\n\n핵심은 의식적 계산 없이 작동한다는 거야. 규칙을 머릿속으로 따지는 게 아니라 몸이 먼저 알고 있는 감각.',
+    branches:[], done:false },
+  { id:3, role:'user', text:'그러면 장(field)은 아비투스랑 어떻게 연결되는 거야? 둘의 관계가 잘 안 보여.' },
+  { id:4, role:'ai',
+    text:'장(field)은 아비투스가 작동하는 사회적 공간이야. 게임판이라고 생각하면 편해.\n\n예술계, 학술계, 경제계 — 각 장마다 고유한 규칙과 자본이 있어. 예술계에서는 "순수 예술적 가치"가, 경제계에서는 "이윤"이 핵심 자본이 되는 식으로.\n\n아비투스와 장의 관계: 아비투스는 특정 장 안에서 "어떻게 움직여야 하는지"를 몸으로 아는 감각이야. 부르디외는 이걸 feel for the game이라고 불러. 규칙을 의식적으로 계산하는 게 아니라, 자연스럽게 판을 읽는 능력.\n\n그래서 아비투스 없이 장에 들어온 사람은 어색해 보여. 규칙을 알아도 감각이 없으면 "게임을 못 한다"는 게 표가 나거든.',
+    branches:[], done:false },
+  { id:5, role:'user', text:'자본도 여러 종류로 나뉜다고 하던데. 경제자본이랑 문화자본이 어떻게 다른 거야?' },
+  { id:6, role:'ai',
+    text:'부르디외는 자본을 세 가지로 나눠:\n\n경제자본: 돈과 재산. 직접 화폐로 전환 가능한 자원.\n\n문화자본: 교육·지식·취향처럼 문화적으로 가치 있는 자원. 세 형태가 있어:\n— 체화된 상태: 몸에 새겨진 능력 (말투, 태도, 독서 습관)\n— 객관화된 상태: 책, 그림, 악기 같은 문화적 물건\n— 제도화된 상태: 학위, 자격증처럼 공식 인증된 형태\n\n사회자본: 네트워크와 관계망을 통해 동원할 수 있는 자원.\n\n중요한 건 이 자본들이 서로 전환된다는 거야. 경제자본으로 좋은 교육을 사면 문화자본이 되고, 문화자본이 쌓이면 좋은 네트워크(사회자본)로 이어져.',
+    branches:[], done:false },
+  { id:7, role:'user', text:'상징 폭력이라는 개념이 아직 잘 안 잡혀. 물리적 폭력이랑 어떻게 다른 건지.' },
+  { id:8, role:'ai',
+    text:'상징 폭력은 지배당하는 사람 스스로가 그 지배를 자연스럽고 정당한 것으로 받아들이게 만드는 작용이야.\n\n물리적 폭력과 결정적으로 다른 점: 피지배자가 저항하지 않는다는 거야. 그들이 순진해서가 아니라, 지배 질서가 "당연한 것"으로 몸에 내면화됐기 때문이야.\n\n예를 들어, "공부 못하는 건 의지가 약해서야"라는 시각이 구조적 불평등을 개인 탓으로 돌려. 그 시각을 실패한 학생 자신도 받아들일 때 — 그게 상징 폭력이야.\n\n아비투스가 핵심이야. 지배 질서가 이미 몸에 새겨졌기 때문에, 거기에 맞춰 행동하는 걸 "강요받는다"고 느끼지 못하는 거야. 동의 없이 작동하는 권력이라고 볼 수 있어.',
+    branches:[], done:false },
+];
+
+const BRANCH_REPLIES = [
+  s => `더 들어가면 — 부르디외는 이걸 "이중의 구조화"라고 불러. 외부의 사회 구조가 아비투스를 만들고, 그 아비투스가 다시 실천을 통해 사회 구조를 재생산해. 닭이 먼저냐 달걀이 먼저냐가 아니라, 둘이 서로를 만드는 순환이야.`,
+  s => `이게 까다로운 건 무의식적 층위를 다루기 때문이야. "사람은 합리적으로 계산해서 행동한다"는 합리적 선택 이론과 정반대 관점이야. 부르디외에게 대부분의 실천은 계산 없이 감각적으로 일어나.`,
+  s => `주요 비판도 여기서 나와. "아비투스가 너무 결정론적이지 않냐"는 거야. 개인의 변화 가능성을 어떻게 설명하냐는 문제인데, 부르디외는 "장의 구조가 바뀌면 아비투스도 긴장 상태에 놓인다"고 답해. 이게 충분한 설명인지는 여전히 논쟁 중이야.`,
+];
+const MAIN_REPLIES = [
+  '좋은 질문이야. 기든스의 "구조화 이론"이랑 비교해보면 흥미해. 기든스도 구조와 행위자의 상호작용을 강조하는데, 부르디외와 달리 행위자의 반성적 능력을 더 높게 봐. 아비투스가 너무 몸에 각인된 것에 집중한다면, 기든스는 사람이 구조를 의식하고 바꿀 수 있다는 측면을 강조해.',
+  '그 지점이 마르크스와 부르디외의 차이이기도 해. 마르크스는 계급을 주로 경제적 관계로 봤지만, 부르디외는 문화자본과 사회자본까지 포함한 다차원적 사회 공간으로 계급을 재정의해. 그래서 같은 소득이라도 전혀 다른 사회적 위치를 가질 수 있는 거야.',
+];
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+
+let mode = 'after';
+let msgs = [];
+let branches = [];
+let branchCnt = 0;
+let activeBranchId = null;
+let tocTimer = null;
+let srcAttachText = '';
+let bReplyIdx = 0, mReplyIdx = 0;
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+
+function init() {
+  resetState();
+  setMode('before');
+  document.addEventListener('mouseup', onMouseUp);
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#toc') && !e.target.closest('#session-title')) hideToc();
+  });
+}
+
+function resetState() {
+  msgs = JSON.parse(JSON.stringify(SEED));
+  branches = []; branchCnt = 0; activeBranchId = null;
+  srcAttachText = ''; bReplyIdx = 0; mReplyIdx = 0;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ═══════════════════════════════════════════════════════
+//  MODE
+// ═══════════════════════════════════════════════════════
+
+function setMode(m) {
+  mode = m;
+  resetState();
+  clearSrcAttach(true);
+  document.getElementById('main-input').value = '';
+  document.getElementById('reply-tip').classList.remove('show');
+  document.getElementById('right-panel').classList.remove('open');
+  hideToc();
+
+  document.getElementById('btn-before').classList.toggle('active', m === 'before');
+  document.getElementById('btn-after').classList.toggle('active', m === 'after');
+  document.querySelector('body').classList.toggle('before-mode', m === 'before');
+  document.querySelector('body').classList.toggle('after-mode', m === 'after');
+
+  const hints = {
+    before: '답변 텍스트를 <b>드래그</b> → 답글하기 → 전송 → 스크롤로 원본 찾기',
+    after:  '답변에 마우스 올리면 <b>파생 질문 열기</b> 버튼이 나타나요',
+  };
+  document.getElementById('hint-text').innerHTML = hints[m];
+
+  renderMsgs(); renderToc(); renderBranch(); updateTopbarTitle();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER MESSAGES
+// ═══════════════════════════════════════════════════════
+
+function renderMsgs() {
+  const el = document.getElementById('messages');
+  el.innerHTML = '';
+  msgs.forEach(m => el.appendChild(makeMsgEl(m)));
+  el.scrollTop = el.scrollHeight;
+}
+
+function makeMsgEl(m) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + m.role;
+  d.dataset.id = m.id;
+
+  if (m.role === 'user') {
+    d.innerHTML = `
+      <span class="msg-lbl">나</span>
+      <div class="msg-wrap"><div class="bubble">${fmt(m.text)}</div></div>`;
+  } else {
+    const hasBranch = m.branches && m.branches.length > 0;
+    const badgeClass = m.done ? 'done' : (hasBranch ? 'active' : '');
+    const badgeTxt   = m.done ? '✓ 완료'
+                     : hasBranch ? `⤷ 파생 질문 ${m.branches.length}개` : '';
+    d.innerHTML = `
+      <span class="msg-lbl">AI</span>
+      <div class="msg-wrap">
+        <div class="bubble">${fmt(m.text)}</div>
+        <button class="branch-open-btn" onclick="openBranch(${m.id})">⤷ 파생 질문 열기</button>
+      </div>
+      <div class="msg-actions">
+        <button class="msg-action-btn" title="복사">⎘</button>
+        <button class="msg-action-btn" title="재생성">↺</button>
+        <button class="msg-action-btn" title="더보기">···</button>
+      </div>
+      <div class="branch-badge ${badgeClass}" style="${hasBranch ? '' : 'display:none'}">${badgeTxt}</div>`;
+  }
+  return d;
+}
+
+function fmt(s) { return esc(s).replace(/\n/g,'<br>'); }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ═══════════════════════════════════════════════════════
+//  TOC
+// ═══════════════════════════════════════════════════════
+
+function renderToc() {
+  const el = document.getElementById('toc');
+  while (el.children.length > 1) el.removeChild(el.lastChild);
+  msgs.filter(m => m.role === 'user').forEach((m, i) => {
+    const ai = msgs.find(x => x.role === 'ai' && x.id === m.id + 1);
+    const branched = ai && ai.branches && ai.branches.length > 0;
+    const done = ai && ai.done;
+    const row = document.createElement('div');
+    row.className = 'toc-row' + (branched ? ' branched' : '') + (done ? ' done' : '');
+    row.onclick = () => { scrollToMsg(m.id); hideToc(); };
+    const num = done ? '✓' : branched ? '⤷' : (i + 1) + '.';
+    row.innerHTML = `<span class="toc-num">${num}</span><span class="toc-txt">${esc(m.text.substring(0,46))}${m.text.length>46?'…':''}</span>`;
+    el.appendChild(row);
+  });
+}
+
+function onTocEnter() { if (mode !== 'after' || activeBranchId) return; cancelTocTimer(); showToc(); }
+
+function updateTopbarTitle() {
+  const el = document.getElementById('session-title');
+  if (activeBranchId) {
+    const b = branches.find(x => x.id === activeBranchId);
+    if (!b) return;
+    const aiMsg = msgs.find(m => m.id === b.srcMsgId);
+    const aiIdx = aiMsg ? msgs.indexOf(aiMsg) : -1;
+    const userMsg = aiIdx > 0 ? msgs[aiIdx - 1] : null;
+    const label = userMsg ? userMsg.text.substring(0, 28) + '…' : b.label;
+    el.innerHTML = `<span style="color:var(--branch)">⤷</span> ${esc(label)}`;
+  } else {
+    el.innerHTML = `부르디외 — 아비투스와 장 이론 <span class="arr">▾</span>`;
+  }
+}
+
+function toggleSrcExpand(branchId) {
+  const txt = document.getElementById('src-text-' + branchId);
+  const btn = document.getElementById('src-btn-' + branchId);
+  if (!txt || !btn) return;
+  const expanded = txt.classList.toggle('expanded');
+  btn.textContent = expanded ? '접기 ▴' : '더보기 ▾';
+}
+function onTocLeave() { scheduleTocHide(); }
+function showToc()    { document.getElementById('toc').classList.add('show'); }
+function hideToc()    { document.getElementById('toc').classList.remove('show'); }
+function scheduleTocHide() { tocTimer = setTimeout(hideToc, 180); }
+function cancelTocTimer()  { if (tocTimer) { clearTimeout(tocTimer); tocTimer = null; } }
+
+function scrollToMsg(id) {
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+  el.style.transition = 'background .4s';
+  el.style.background = '#EDE9FE';
+  setTimeout(() => { el.style.background = ''; }, 1400);
+}
+
+// ═══════════════════════════════════════════════════════
+//  BRANCH OPEN
+// ═══════════════════════════════════════════════════════
+
+function openBranch(msgId) {
+  const srcMsg = msgs.find(m => m.id === msgId);
+  if (!srcMsg) return;
+  const id = ++branchCnt;
+  const b = { id, srcMsgId: msgId, srcText: srcMsg.text.substring(0,160), messages:[], done:false, label:`파생 ${id}` };
+  branches.push(b);
+  srcMsg.branches.push(id);
+  activeBranchId = id;
+  document.getElementById('right-panel').classList.add('open');
+  renderMsgs(); renderToc(); renderBranch();
+  updateTopbarTitle();
+  focusMsg(msgId);
+  setTimeout(() => { const inp = document.getElementById('bi-' + id); if (inp) inp.focus(); }, 320);
+}
+
+function focusMsg(id) {
+  document.querySelectorAll('.msg.focused').forEach(el => el.classList.remove('focused'));
+  const el = document.querySelector(`.msg[data-id="${id}"]`);
+  if (el) { el.classList.add('focused'); el.scrollIntoView({ behavior:'smooth', block:'center' }); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  BRANCH PANEL
+// ═══════════════════════════════════════════════════════
+
+function renderBranch() { renderTabs(); renderBranchBody(); }
+
+function renderTabs() {
+  const el = document.getElementById('btabs');
+  el.innerHTML = '';
+  branches.forEach(b => {
+    const t = document.createElement('div');
+    t.className = 'btab' + (b.id === activeBranchId ? ' active' : '');
+    t.onclick = () => switchTab(b.id);
+    t.innerHTML = `${b.label}${b.done ? ' ✓' : ''} <span class="tx" onclick="closeTab(${b.id},event)">✕</span>`;
+    el.appendChild(t);
+  });
+}
+
+function renderBranchBody() {
+  const el = document.getElementById('branch-body');
+  if (!activeBranchId) { el.innerHTML = ''; return; }
+  const b = branches.find(x => x.id === activeBranchId);
+  if (!b) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="src-ctx">
+      <div class="src-lbl">⤷ 분기 원점 · AI 답변에서</div>
+      <div class="src-text" id="src-text-${b.id}">${fmt(b.srcText)}</div>
+      <button class="src-more-btn" id="src-btn-${b.id}" onclick="toggleSrcExpand(${b.id})">더보기 ▾</button>
+    </div>
+    <div class="branch-msgs" id="bmsgs-${b.id}">
+      ${b.messages.map(m => `<div class="bmsg ${m.role}"><div class="bbubble">${fmt(m.text)}</div></div>`).join('')}
+    </div>
+    <div class="branch-actions">
+      <div class="branch-input-box">
+        <textarea class="branch-input" id="bi-${b.id}"
+          placeholder="파생 질문을 입력하세요…"
+          onkeydown="onBranchKey(event,${b.id})"
+          oninput="autoResize(this)"></textarea>
+        <button class="branch-send" onclick="sendBranch(${b.id})">↑</button>
+      </div>
+      <button class="confirm-btn" onclick="confirmBranch(${b.id})">✓ 확인 완료</button>
+    </div>`;
+  const bm = document.getElementById('bmsgs-' + b.id);
+  if (bm) bm.scrollTop = bm.scrollHeight;
+}
+
+function switchTab(id) {
+  activeBranchId = id;
+  renderBranch();
+  updateTopbarTitle();
+  const b = branches.find(x => x.id === id);
+  if (b) focusMsg(b.srcMsgId);
+}
+
+function closeTab(id, e) {
+  if (e) e.stopPropagation();
+  const idx = branches.findIndex(b => b.id === id);
+  const b = branches[idx];
+  branches.splice(idx, 1);
+  if (b) setTimeout(() => focusMsg(b.srcMsgId), 80);
+  if (branches.length === 0) {
+    activeBranchId = null;
+    document.getElementById('right-panel').classList.remove('open');
+  } else {
+    activeBranchId = branches[Math.min(idx, branches.length - 1)].id;
+  }
+  renderBranch(); renderMsgs(); updateTopbarTitle();
+}
+
+function confirmBranch(id) {
+  const b = branches.find(x => x.id === id);
+  if (!b) return;
+  b.done = true;
+  const srcMsg = msgs.find(m => m.id === b.srcMsgId);
+  if (srcMsg) {
+    const allDone = srcMsg.branches.every(bid => { const br = branches.find(x => x.id === bid); return !br || br.done; });
+    if (allDone) srcMsg.done = true;
+  }
+  renderBranch(); renderMsgs(); renderToc();
+  setTimeout(() => closeTab(id, null), 350);
+}
+
+// ═══════════════════════════════════════════════════════
+//  BRANCH SEND
+// ═══════════════════════════════════════════════════════
+
+function sendBranch(id) {
+  const b = branches.find(x => x.id === id);
+  const inp = document.getElementById('bi-' + id);
+  if (!b || !inp) return;
+  const txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = '';
+  b.messages.push({ role:'user', text: txt });
+  renderBranchBody();
+  const bm = document.getElementById('bmsgs-' + id);
+  if (bm) { addTypingBranch(bm, id); bm.scrollTop = bm.scrollHeight; }
+}
+
+function addTypingBranch(container, branchId) {
+  const d = document.createElement('div');
+  d.className = 'bmsg ai'; d.id = 'typing-b-' + branchId;
+  d.innerHTML = `<div class="bbubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  container.appendChild(d);
+  setTimeout(() => {
+    const t = document.getElementById('typing-b-' + branchId);
+    if (t) t.remove();
+    const b = branches.find(x => x.id === branchId);
+    if (!b) return;
+    b.messages.push({ role:'ai', text: BRANCH_REPLIES[bReplyIdx % BRANCH_REPLIES.length](b.srcText) });
+    bReplyIdx++;
+    renderBranchBody();
+  }, 1100);
+}
+
+function onBranchKey(e, id) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBranch(id); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAIN SEND
+// ═══════════════════════════════════════════════════════
+
+function sendMain() {
+  const inp = document.getElementById('main-input');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = ''; inp.style.height = 'auto';
+  const maxId = Math.max(...msgs.map(m => m.id), 0);
+  const uid = maxId + 1;
+  const fullTxt = srcAttachText ? `[인용: "${srcAttachText}"]\n\n${txt}` : txt;
+  clearSrcAttach(true);
+  msgs.push({ id: uid, role:'user', text: fullTxt });
+  renderMsgs();
+  const mc = document.getElementById('messages');
+  const te = document.createElement('div');
+  te.className = 'msg ai'; te.id = 'typing-main';
+  te.innerHTML = `<span class="msg-lbl">AI</span><div class="msg-wrap"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
+  mc.appendChild(te); mc.scrollTop = mc.scrollHeight;
+  setTimeout(() => {
+    const t = document.getElementById('typing-main');
+    if (t) t.remove();
+    const aid = uid + 1;
+    const reply = MAIN_REPLIES[mReplyIdx % MAIN_REPLIES.length];
+    mReplyIdx++;
+    const newMsg = { id: aid, role:'ai', text: reply, branches:[], done: false };
+    msgs.push(newMsg);
+    renderMsgs(); renderToc();
+    if (mode === 'before') {
+      const ne = document.querySelector(`[data-id="${aid}"]`);
+      if (ne) { ne.classList.add('new-before'); ne.scrollIntoView({ behavior:'smooth', block:'start' }); }
+    }
+  }, 1400);
+}
+
+function onMainKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMain(); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  BEFORE MODE — TEXT SELECTION
+// ═══════════════════════════════════════════════════════
+
+function onMouseUp(e) {
+  if (mode !== 'before') return;
+  const sel = window.getSelection();
+  const txt = sel ? sel.toString().trim() : '';
+  if (!txt || txt.length < 4) { document.getElementById('reply-tip').classList.remove('show'); return; }
+  const range = sel.getRangeAt(0);
+  const anchor = range.commonAncestorContainer;
+  const aiBubble = (anchor.nodeType === 3 ? anchor.parentElement : anchor).closest('.msg.ai');
+  if (!aiBubble) { document.getElementById('reply-tip').classList.remove('show'); return; }
+  const rect = range.getBoundingClientRect();
+  const tip = document.getElementById('reply-tip');
+  tip.style.left = rect.left + 'px';
+  tip.style.top  = (rect.top - 38) + 'px';
+  tip.classList.add('show');
+  tip.onclick = () => {
+    setSourceAttach(txt);
+    tip.classList.remove('show');
+    sel.removeAllRanges();
+    document.getElementById('main-input').focus();
+  };
+}
+
+function setSourceAttach(txt) {
+  srcAttachText = txt;
+  document.getElementById('src-attach-txt').textContent = txt;
+  document.getElementById('src-attach').classList.add('show');
+}
+function clearSrcAttach(silent) {
+  srcAttachText = '';
+  document.getElementById('src-attach').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
