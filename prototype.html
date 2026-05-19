@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>파생 질문 브랜치 UX — HID 프로토타입</title>
+<title>학습모드 채팅 UX — HID 프로토타입</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -24,6 +24,9 @@
   --sb-muted: #6B7280;
   --chat-bg: #FFFFFF;
   --panel-bg: #F7F7FF;
+  --understood: #10B981;
+  --unsure: #F59E0B;
+  --confused: #EF4444;
 }
 html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple SD Gothic Neo',BlinkMacSystemFont,sans-serif; font-size: 14px; color: var(--text); }
 
@@ -42,19 +45,16 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .sb-new-btn {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 8px; cursor: pointer;
-  font-size: 14px; color: var(--sb-text);
-  transition: background .12s;
+  font-size: 14px; color: var(--sb-text); transition: background .12s;
 }
 .sb-new-btn:hover { background: var(--sb-hover); }
 .sb-new-btn .icon { font-size: 16px; opacity: .8; }
 .sb-search {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 8px; cursor: pointer;
-  font-size: 14px; color: var(--sb-muted);
-  transition: background .12s;
+  font-size: 14px; color: var(--sb-muted); transition: background .12s;
 }
 .sb-search:hover { background: var(--sb-hover); }
-
 .sb-body { flex: 1; overflow-y: auto; padding: 4px 10px; }
 .sb-body::-webkit-scrollbar { width: 4px; }
 .sb-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,.1); border-radius: 4px; }
@@ -72,7 +72,6 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .sb-item:hover { background: var(--sb-hover); }
 .sb-item.active { background: var(--sb-active); }
 .sb-item .sb-item-txt { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-
 .sb-bottom {
   padding: 10px; border-top: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 6px;
@@ -94,10 +93,25 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .sb-upgrade {
   background: white; border: 1px solid var(--border);
   color: var(--sb-text); padding: 7px 12px; border-radius: 8px;
-  font-size: 13px; cursor: pointer; text-align: center;
-  transition: background .12s;
+  font-size: 13px; cursor: pointer; text-align: center; transition: background .12s;
 }
 .sb-upgrade:hover { background: #F3F4F6; }
+
+/* ══ VERSION TABS ══ */
+.version-tabs {
+  display: flex; gap: 0;
+  padding: 8px 18px 0;
+  border-bottom: 1px solid var(--border);
+  background: white; flex-shrink: 0;
+}
+.vtab {
+  padding: 6px 16px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  color: var(--muted); transition: all .15s;
+  border-radius: 6px 6px 0 0;
+}
+.vtab.active { border-bottom-color: var(--p); color: var(--p); font-weight: 700; }
+.vtab:hover:not(.active) { color: var(--text); }
 
 /* ══ CENTER + RIGHT WRAPPER ══ */
 .center-wrap {
@@ -148,8 +162,26 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .mode-btn { padding: 5px 16px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .15s; }
 .mode-btn.active { background: var(--p); color: white; }
 
-/* ══ CONTENT AREA (chat + right panel) ══ */
-.content-area { flex: 1; display: flex; overflow: hidden; }
+/* 학습모드 toggle */
+.learn-toggle-wrap { display: none; align-items: center; gap: 7px; flex-shrink: 0; }
+.learn-toggle-wrap.show { display: flex; }
+.learn-toggle-label { font-size: 12px; color: var(--muted); }
+.learn-toggle-btn {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: #E5E7EB; border: none; cursor: pointer;
+  position: relative; transition: background .2s; flex-shrink: 0;
+}
+.learn-toggle-btn.on { background: var(--p); }
+.learn-toggle-btn::after {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: white; top: 3px; left: 3px;
+  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.learn-toggle-btn.on::after { transform: translateX(18px); }
+
+/* ══ CONTENT AREA ══ */
+.content-area { flex: 1; display: flex; overflow: hidden; position: relative; }
 
 /* ══ CHAT PANEL ══ */
 .chat-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-width: 0; background: var(--chat-bg); }
@@ -169,6 +201,11 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .msg.ai   .bubble { background: white; color: var(--text); border-bottom-left-radius: 5px; }
 .msg.ai.focused .bubble { outline: 2px solid var(--p); outline-offset: 2px; box-shadow: 0 0 0 4px var(--p-light); }
 .msg.ai.new-before .bubble { background: var(--branch-bg); outline: 1.5px solid var(--branch-border); }
+.msg.highlighted .bubble { animation: msgHighlight 1.4s ease-out forwards; }
+@keyframes msgHighlight {
+  0% { background: #EDE9FE; }
+  100% { background: white; }
+}
 
 /* branch button */
 .branch-open-btn {
@@ -177,8 +214,7 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
   background: var(--p); color: white; border: none; border-radius: 20px;
   padding: 4px 11px; font-size: 12px; font-weight: 500;
   cursor: pointer; white-space: nowrap; z-index: 10;
-  box-shadow: 0 2px 10px rgba(124,58,237,.35);
-  transition: transform .1s;
+  box-shadow: 0 2px 10px rgba(124,58,237,.35); transition: transform .1s;
 }
 .branch-open-btn:hover { transform: scale(1.04); }
 .after-mode .msg.ai .msg-wrap:hover .branch-open-btn { display: flex; }
@@ -193,7 +229,7 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .branch-badge.active { color: var(--branch); background: var(--branch-bg); border: 1px solid var(--branch-border); }
 .branch-badge.done   { color: var(--done);   background: var(--done-bg); }
 
-/* AI action row (copy, regen, etc.) */
+/* AI action row */
 .msg-actions {
   display: flex; align-items: center; gap: 2px;
   padding: 2px 2px; opacity: 0; transition: opacity .15s;
@@ -207,6 +243,56 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 }
 .msg-action-btn:hover { background: #F3F4F6; color: var(--text); }
 
+/* ══ UNDERSTANDING BAR ══ */
+.understanding-bar {
+  display: none; align-items: center; gap: 6px;
+  margin-top: 6px; flex-wrap: wrap;
+}
+.learning-on .msg.ai .understanding-bar { display: flex; }
+.understand-btn {
+  padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1.5px solid var(--border); background: white;
+  color: var(--muted); transition: all .15s; white-space: nowrap;
+}
+.understand-btn:hover { border-color: #9CA3AF; color: var(--text); }
+.understand-btn.sel-understood { border-color: var(--understood); background: var(--done-bg); color: var(--understood); }
+.understand-btn.sel-unsure { border-color: var(--unsure); background: var(--branch-bg); color: var(--unsure); }
+.understand-btn.sel-confused { border-color: var(--confused); background: #FEE2E2; color: var(--confused); }
+
+/* ══ UNDERSTANDING POPOVER ══ */
+.understand-popover {
+  background: white; border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  margin-top: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.1);
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: 480px;
+}
+.popover-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.popover-checks { display: flex; gap: 8px; flex-wrap: wrap; }
+.popover-check {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; color: var(--muted);
+  border: 1.5px solid var(--border); background: white;
+  transition: all .12s; user-select: none;
+}
+.popover-check.checked { border-color: var(--p); background: var(--p-light); color: var(--p); }
+.popover-drag-hint { font-size: 11px; color: var(--muted); background: #F9FAFB; border-radius: 6px; padding: 6px 10px; }
+.popover-sel-chip {
+  display: none; font-size: 12px; padding: 4px 10px;
+  background: var(--p-light); border: 1px solid #C4B5FD;
+  border-radius: 6px; color: var(--p); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.popover-sel-chip.show { display: block; }
+.popover-extra { font-size: 12px; color: var(--muted); border: none; outline: none; width: 100%; resize: none; font-family: inherit; min-height: 40px; background: #F9FAFB; border-radius: 6px; padding: 7px 10px; }
+.popover-submit {
+  align-self: flex-end; background: var(--p); color: white;
+  border: none; padding: 6px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
+}
+.popover-submit:hover { background: #6D28D9; }
+
 /* ══ REPLY TOOLTIP ══ */
 .reply-tip {
   position: fixed; background: #1F2937; color: white;
@@ -215,6 +301,17 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
   box-shadow: 0 4px 14px rgba(0,0,0,.3); pointer-events: none;
 }
 .reply-tip.show { display: block; pointer-events: all; }
+
+/* ══ SUMMARY BUTTON (v0.2 before) ══ */
+.summary-btn-wrap { display: none; padding: 0 0 8px; }
+.summary-btn-wrap.show { display: block; }
+.summary-btn {
+  width: 100%; padding: 8px 14px; border-radius: 10px;
+  border: 1.5px dashed var(--border); background: #F9FAFB;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  transition: all .15s; text-align: center;
+}
+.summary-btn:hover { border-color: var(--p); color: var(--p); background: var(--p-light); }
 
 /* ══ CHAT INPUT ══ */
 .chat-input-wrap {
@@ -260,7 +357,6 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
   transition: width .28s ease; flex-shrink: 0;
 }
 .right-panel.open { width: 360px; }
-
 .btabs {
   display: flex; background: white; border-bottom: 1px solid var(--border);
   overflow-x: auto; padding: 0 12px; flex-shrink: 0;
@@ -274,7 +370,6 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .btab.active { border-bottom-color: var(--p); color: var(--p); font-weight: 600; }
 .btab .tx { font-size: 14px; opacity: .4; line-height: 1; }
 .btab .tx:hover { opacity: 1; }
-
 .branch-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .src-ctx { padding: 12px 14px; border-bottom: 1px solid var(--border); background: white; flex-shrink: 0; }
 .src-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--branch); margin-bottom: 5px; }
@@ -291,7 +386,6 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
   border-radius: 0 0 8px 8px; padding: 3px 10px; cursor: pointer; text-align: center;
 }
 .src-more-btn:hover { filter: brightness(.96); }
-
 .branch-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .bmsg { display: flex; flex-direction: column; gap: 3px; }
 .bmsg.user { align-items: flex-end; }
@@ -299,7 +393,6 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .bbubble { max-width: 92%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.6; }
 .bmsg.user .bbubble { background: #F3F4F6; color: var(--text); border-bottom-right-radius: 3px; }
 .bmsg.ai   .bbubble { background: white; border: 1px solid var(--border); border-bottom-left-radius: 3px; }
-
 .branch-actions { padding: 10px 14px; border-top: 1px solid var(--border); background: white; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .branch-input-box {
   display: flex; align-items: flex-end; gap: 8px;
@@ -317,6 +410,51 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 .confirm-btn { background: var(--done); color: white; border: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; transition: background .15s; }
 .confirm-btn:hover { background: #059669; }
 
+/* ══ MINIMAP ══ */
+.minimap {
+  position: absolute; top: 16px; right: 16px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.1);
+  width: 220px; z-index: 100;
+  display: none; flex-direction: column;
+  overflow: hidden;
+}
+.minimap.visible { display: flex; }
+.minimap-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase;
+}
+.minimap-nodes { padding: 6px 0; max-height: 260px; overflow-y: auto; }
+.minimap-nodes::-webkit-scrollbar { width: 3px; }
+.minimap-nodes::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 3px; }
+.mm-node {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; cursor: pointer; font-size: 12px;
+  color: var(--text); transition: background .1s;
+}
+.mm-node:hover { background: #F9FAFB; }
+.mm-node.child { padding-left: 28px; font-size: 11px; color: var(--muted); }
+.mm-icon { font-size: 12px; flex-shrink: 0; }
+.mm-icon.understood { color: var(--understood); }
+.mm-icon.unsure { color: var(--unsure); }
+.mm-icon.confused { color: var(--confused); }
+.mm-icon.none { color: #D1D5DB; }
+.mm-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+/* Minimap pill (collapsed) */
+.minimap-pill {
+  position: absolute; top: 16px; right: 16px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 12px; cursor: pointer; z-index: 100;
+  box-shadow: 0 2px 10px rgba(0,0,0,.1); display: none;
+  align-items: center; gap: 5px; color: var(--muted);
+  transition: all .15s;
+}
+.minimap-pill.visible { display: flex; }
+.minimap-pill:hover { border-color: var(--p); color: var(--p); }
+
 /* ══ TYPING ══ */
 .typing { display: flex; gap: 4px; padding: 6px 2px; }
 .typing span { width: 6px; height: 6px; background: #9CA3AF; border-radius: 50%; animation: bounce 1.2s infinite; }
@@ -332,29 +470,12 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 <div class="app">
 
 <!-- ══ SIDEBAR ══ -->
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
   <div class="sb-top">
     <div class="sb-new-btn"><span class="icon">✏️</span> 새 채팅</div>
     <div class="sb-search"><span>🔍</span> 채팅 검색</div>
   </div>
-
-  <div class="sb-body">
-    <div class="sb-section-label">최근</div>
-    <div class="sb-item active"><span class="sb-item-txt">부르디외 — 아비투스와 장 이론</span></div>
-    <div class="sb-item"><span class="sb-item-txt">푸코의 권력-지식 개념</span></div>
-    <div class="sb-item"><span class="sb-item-txt">하버마스 — 의사소통적 합리성</span></div>
-    <div class="sb-item"><span class="sb-item-txt">롤스의 정의론 핵심 개념</span></div>
-    <div class="sb-item"><span class="sb-item-txt">헤겔 변증법 기초 다지기</span></div>
-    <div class="sb-section-label" style="margin-top:10px">이전 7일</div>
-    <div class="sb-item"><span class="sb-item-txt">사회계약론 — 홉스·로크·루소 비교</span></div>
-    <div class="sb-item"><span class="sb-item-txt">베버의 관료제와 합리화</span></div>
-    <div class="sb-item"><span class="sb-item-txt">뒤르켐의 아노미 개념</span></div>
-    <div class="sb-section-label" style="margin-top:10px">이전 30일</div>
-    <div class="sb-item"><span class="sb-item-txt">아렌트 — 공적 영역과 사적 영역</span></div>
-    <div class="sb-item"><span class="sb-item-txt">마르크스 소외론 이해</span></div>
-    <div class="sb-item"><span class="sb-item-txt">구조주의와 후기구조주의 차이</span></div>
-  </div>
-
+  <div class="sb-body" id="sb-body"></div>
   <div class="sb-bottom">
     <div class="sb-user">
       <div class="sb-avatar">M</div>
@@ -370,11 +491,17 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
 <!-- ══ CENTER WRAP ══ -->
 <div class="center-wrap">
 
+  <!-- VERSION TABS -->
+  <div class="version-tabs">
+    <div class="vtab active" id="vtab-v1" onclick="setVersion('v1')">v0.1</div>
+    <div class="vtab" id="vtab-v2" onclick="setVersion('v2')">v0.2</div>
+  </div>
+
   <!-- TOP BAR -->
   <div class="topbar">
     <span class="session-title" id="session-title"
       onmouseenter="onTocEnter()" onmouseleave="onTocLeave()">
-      부르디외 — 아비투스와 장 이론 <span class="arr">▾</span>
+      <span id="session-title-text">부르디외 — 아비투스와 장 이론</span> <span class="arr">▾</span>
     </span>
     <div class="toc" id="toc"
       onmouseenter="onTocEnter()" onmouseleave="onTocLeave()">
@@ -382,6 +509,12 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
     </div>
     <div class="topbar-spacer"></div>
     <span class="hint-text" id="hint-text"></span>
+    <!-- 학습모드 toggle — only v0.2 after -->
+    <div class="learn-toggle-wrap" id="learn-toggle-wrap">
+      <span class="learn-toggle-label">학습모드</span>
+      <button class="learn-toggle-btn" id="learn-toggle-btn" onclick="toggleLearningMode()"></button>
+    </div>
+    <!-- before/after toggle -->
     <div class="mode-toggle">
       <button class="mode-btn" id="btn-before" onclick="setMode('before')">Before</button>
       <button class="mode-btn active" id="btn-after" onclick="setMode('after')">After</button>
@@ -389,12 +522,16 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
   </div>
 
   <!-- CONTENT -->
-  <div class="content-area">
+  <div class="content-area" id="content-area">
 
     <!-- CHAT PANEL -->
     <div class="chat-panel" id="chat-panel">
       <div class="messages" id="messages"></div>
       <div class="chat-input-wrap">
+        <!-- summary button (v0.2 before only) -->
+        <div class="summary-btn-wrap" id="summary-btn-wrap">
+          <button class="summary-btn" onclick="showSummary()">📋 지금까지 내용 요약</button>
+        </div>
         <div class="src-attach" id="src-attach">
           <span>📎</span>
           <span class="src-attach-txt" id="src-attach-txt"></span>
@@ -409,84 +546,131 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system,'Apple S
       </div>
     </div>
 
-    <!-- RIGHT PANEL -->
+    <!-- RIGHT PANEL (v0.1 after branches) -->
     <div class="right-panel" id="right-panel">
       <div class="btabs" id="btabs"></div>
       <div class="branch-body" id="branch-body"></div>
     </div>
 
-  </div>
-</div>
+    <!-- MINIMAP (v0.2 after + learning mode on) -->
+    <div class="minimap" id="minimap">
+      <div class="minimap-header">
+        <span>학습 지도</span>
+        <span style="cursor:pointer;opacity:.5;font-size:14px;" onclick="collapseMinimap()">−</span>
+      </div>
+      <div class="minimap-nodes" id="minimap-nodes"></div>
+    </div>
 
+    <!-- MINIMAP PILL (collapsed state) -->
+    <div class="minimap-pill" id="minimap-pill" onclick="expandMinimap()">
+      🗺️ 학습 지도
+    </div>
+
+  </div><!-- .content-area -->
+</div><!-- .center-wrap -->
 </div><!-- .app -->
 
 <!-- REPLY TOOLTIP -->
 <div class="reply-tip" id="reply-tip">✦ 답글하기</div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-//  DATA
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  SEED DATA
+// ════════════════════════════════════════════════════════════════
 
-const SEED = [
+const SEED_V1 = [
   { id:1, role:'user', text:'부르디외 텍스트 읽고 있는데, 아비투스가 정확히 뭔지 모르겠어. "내면화된 구조"라는 표현은 알겠는데 그게 어떻게 행동으로 연결되는 건지.' },
-  { id:2, role:'ai',
-    text:'아비투스(habitus)는 개인이 사회화 과정에서 몸에 새긴 지속적인 성향 체계야.\n\n부르디외가 쓴 표현이 핵심이야 — "구조화된 구조이면서 동시에 구조화하는 구조". 두 방향이 있어:\n\n① 구조화된 구조: 계급·교육·환경 같은 사회 조건이 몸과 인식 방식에 새겨진 흔적\n② 구조화하는 구조: 그 새겨진 성향이 다시 행동·판단·취향을 만들어 냄\n\n예를 들어, 어릴 때부터 클래식 음악이 흐르는 집에서 자란 사람은 "클래식을 좋아하기로 결정"하지 않아도 자연스럽게 그 취향을 갖게 돼. 그 선호 자체가 아비투스야.\n\n핵심은 의식적 계산 없이 작동한다는 거야. 규칙을 머릿속으로 따지는 게 아니라 몸이 먼저 알고 있는 감각.',
-    branches:[], done:false },
+  { id:2, role:'ai', text:'아비투스(habitus)는 개인이 사회화 과정에서 몸에 새긴 지속적인 성향 체계야.\n\n부르디외가 쓴 표현이 핵심이야 — "구조화된 구조이면서 동시에 구조화하는 구조". 두 방향이 있어:\n\n① 구조화된 구조: 계급·교육·환경 같은 사회 조건이 몸과 인식 방식에 새겨진 흔적\n② 구조화하는 구조: 그 새겨진 성향이 다시 행동·판단·취향을 만들어 냄\n\n예를 들어, 어릴 때부터 클래식 음악이 흐르는 집에서 자란 사람은 "클래식을 좋아하기로 결정"하지 않아도 자연스럽게 그 취향을 갖게 돼. 그 선호 자체가 아비투스야.\n\n핵심은 의식적 계산 없이 작동한다는 거야. 규칙을 머릿속으로 따지는 게 아니라 몸이 먼저 알고 있는 감각.', branches:[], done:false },
   { id:3, role:'user', text:'그러면 장(field)은 아비투스랑 어떻게 연결되는 거야? 둘의 관계가 잘 안 보여.' },
-  { id:4, role:'ai',
-    text:'장(field)은 아비투스가 작동하는 사회적 공간이야. 게임판이라고 생각하면 편해.\n\n예술계, 학술계, 경제계 — 각 장마다 고유한 규칙과 자본이 있어. 예술계에서는 "순수 예술적 가치"가, 경제계에서는 "이윤"이 핵심 자본이 되는 식으로.\n\n아비투스와 장의 관계: 아비투스는 특정 장 안에서 "어떻게 움직여야 하는지"를 몸으로 아는 감각이야. 부르디외는 이걸 feel for the game이라고 불러. 규칙을 의식적으로 계산하는 게 아니라, 자연스럽게 판을 읽는 능력.\n\n그래서 아비투스 없이 장에 들어온 사람은 어색해 보여. 규칙을 알아도 감각이 없으면 "게임을 못 한다"는 게 표가 나거든.',
-    branches:[], done:false },
+  { id:4, role:'ai', text:'장(field)은 아비투스가 작동하는 사회적 공간이야. 게임판이라고 생각하면 편해.\n\n예술계, 학술계, 경제계 — 각 장마다 고유한 규칙과 자본이 있어. 예술계에서는 "순수 예술적 가치"가, 경제계에서는 "이윤"이 핵심 자본이 되는 식으로.\n\n아비투스와 장의 관계: 아비투스는 특정 장 안에서 "어떻게 움직여야 하는지"를 몸으로 아는 감각이야. 부르디외는 이걸 feel for the game이라고 불러. 규칙을 의식적으로 계산하는 게 아니라, 자연스럽게 판을 읽는 능력.\n\n그래서 아비투스 없이 장에 들어온 사람은 어색해 보여. 규칙을 알아도 감각이 없으면 "게임을 못 한다"는 게 표가 나거든.', branches:[], done:false },
   { id:5, role:'user', text:'자본도 여러 종류로 나뉜다고 하던데. 경제자본이랑 문화자본이 어떻게 다른 거야?' },
-  { id:6, role:'ai',
-    text:'부르디외는 자본을 세 가지로 나눠:\n\n경제자본: 돈과 재산. 직접 화폐로 전환 가능한 자원.\n\n문화자본: 교육·지식·취향처럼 문화적으로 가치 있는 자원. 세 형태가 있어:\n— 체화된 상태: 몸에 새겨진 능력 (말투, 태도, 독서 습관)\n— 객관화된 상태: 책, 그림, 악기 같은 문화적 물건\n— 제도화된 상태: 학위, 자격증처럼 공식 인증된 형태\n\n사회자본: 네트워크와 관계망을 통해 동원할 수 있는 자원.\n\n중요한 건 이 자본들이 서로 전환된다는 거야. 경제자본으로 좋은 교육을 사면 문화자본이 되고, 문화자본이 쌓이면 좋은 네트워크(사회자본)로 이어져.',
-    branches:[], done:false },
+  { id:6, role:'ai', text:'부르디외는 자본을 세 가지로 나눠:\n\n경제자본: 돈과 재산. 직접 화폐로 전환 가능한 자원.\n\n문화자본: 교육·지식·취향처럼 문화적으로 가치 있는 자원. 세 형태가 있어:\n— 체화된 상태: 몸에 새겨진 능력 (말투, 태도, 독서 습관)\n— 객관화된 상태: 책, 그림, 악기 같은 문화적 물건\n— 제도화된 상태: 학위, 자격증처럼 공식 인증된 형태\n\n사회자본: 네트워크와 관계망을 통해 동원할 수 있는 자원.\n\n중요한 건 이 자본들이 서로 전환된다는 거야. 경제자본으로 좋은 교육을 사면 문화자본이 되고, 문화자본이 쌓이면 좋은 네트워크(사회자본)로 이어져.', branches:[], done:false },
   { id:7, role:'user', text:'상징 폭력이라는 개념이 아직 잘 안 잡혀. 물리적 폭력이랑 어떻게 다른 건지.' },
-  { id:8, role:'ai',
-    text:'상징 폭력은 지배당하는 사람 스스로가 그 지배를 자연스럽고 정당한 것으로 받아들이게 만드는 작용이야.\n\n물리적 폭력과 결정적으로 다른 점: 피지배자가 저항하지 않는다는 거야. 그들이 순진해서가 아니라, 지배 질서가 "당연한 것"으로 몸에 내면화됐기 때문이야.\n\n예를 들어, "공부 못하는 건 의지가 약해서야"라는 시각이 구조적 불평등을 개인 탓으로 돌려. 그 시각을 실패한 학생 자신도 받아들일 때 — 그게 상징 폭력이야.\n\n아비투스가 핵심이야. 지배 질서가 이미 몸에 새겨졌기 때문에, 거기에 맞춰 행동하는 걸 "강요받는다"고 느끼지 못하는 거야. 동의 없이 작동하는 권력이라고 볼 수 있어.',
-    branches:[], done:false },
+  { id:8, role:'ai', text:'상징 폭력은 지배당하는 사람 스스로가 그 지배를 자연스럽고 정당한 것으로 받아들이게 만드는 작용이야.\n\n물리적 폭력과 결정적으로 다른 점: 피지배자가 저항하지 않는다는 거야. 그들이 순진해서가 아니라, 지배 질서가 "당연한 것"으로 몸에 내면화됐기 때문이야.\n\n예를 들어, "공부 못하는 건 의지가 약해서야"라는 시각이 구조적 불평등을 개인 탓으로 돌려. 그 시각을 실패한 학생 자신도 받아들일 때 — 그게 상징 폭력이야.\n\n아비투스가 핵심이야. 지배 질서가 이미 몸에 새겨졌기 때문에, 거기에 맞춰 행동하는 걸 "강요받는다"고 느끼지 못하는 거야. 동의 없이 작동하는 권력이라고 볼 수 있어.', branches:[], done:false },
 ];
 
-const BRANCH_REPLIES = [
-  s => `더 들어가면 — 부르디외는 이걸 "이중의 구조화"라고 불러. 외부의 사회 구조가 아비투스를 만들고, 그 아비투스가 다시 실천을 통해 사회 구조를 재생산해. 닭이 먼저냐 달걀이 먼저냐가 아니라, 둘이 서로를 만드는 순환이야.`,
-  s => `이게 까다로운 건 무의식적 층위를 다루기 때문이야. "사람은 합리적으로 계산해서 행동한다"는 합리적 선택 이론과 정반대 관점이야. 부르디외에게 대부분의 실천은 계산 없이 감각적으로 일어나.`,
-  s => `주요 비판도 여기서 나와. "아비투스가 너무 결정론적이지 않냐"는 거야. 개인의 변화 가능성을 어떻게 설명하냐는 문제인데, 부르디외는 "장의 구조가 바뀌면 아비투스도 긴장 상태에 놓인다"고 답해. 이게 충분한 설명인지는 여전히 논쟁 중이야.`,
+const SEED_V2 = [
+  { id:1, role:'user', text:'소크라테스의 "무지의 지"가 정확히 뭔지 모르겠어. 그냥 모른다는 걸 안다는 건 알겠는데, 철학적으로 왜 중요한 건지.' },
+  { id:2, role:'ai', text:'무지의 지(無知의 知)는 소크라테스 철학의 출발점이야.\n\n핵심은 이거야: 아테네 사람들은 자신이 안다고 믿지만, 사실 제대로 알지 못해. 소크라테스는 자신도 모른다는 것을 알기 때문에, 그 사람들보다 조금 더 지혜롭다고 봤어.\n\n왜 철학적으로 중요하냐면 — 이게 "앎"에 대한 근본적인 질문을 여는 거야. 안다고 착각하는 사람은 질문하지 않아. 하지만 모른다는 걸 아는 사람은 끊임없이 탐구해. 소크라테스에게 철학은 바로 이 탐구 자체야.', understanding:'none', branches:[], done:false },
+  { id:3, role:'user', text:'변증법이랑 어떻게 연결돼? 소크라테스가 대화로 논박하는 게 변증법인 건지?' },
+  { id:4, role:'ai', text:'맞아. 소크라테스의 변증법(dialectic)은 대화를 통해 진리에 다가가는 방법이야.\n\n① 상대방의 주장을 물어본다\n② 연속적인 질문으로 그 주장의 모순이나 약점을 드러낸다\n③ 상대방 스스로 자신의 무지를 인식하게 만든다\n\n이걸 산파술(maieutics)이라고도 해 — 직접 답을 주는 게 아니라, 상대방이 스스로 진리를 "낳도록" 돕는다는 의미야.\n\n무지의 지와 연결되는 지점: 변증법의 목적이 바로 상대방이 "자신이 모른다는 것"을 인식하게 하는 거야.', understanding:'none', branches:[], done:false },
+  { id:5, role:'user', text:'플라톤의 이데아론은 소크라테스랑 어떤 관계야? 소크라테스가 이데아론을 만든 건 아니잖아?' },
+  { id:6, role:'ai', text:'맞아. 이데아론은 플라톤의 것이야. 하지만 소크라테스의 영향이 직접적으로 담겨있어.\n\n소크라테스는 "정의란 무엇인가", "아름다움이란 무엇인가"처럼 사물의 본질을 묻는 질문을 집요하게 했어. 플라톤은 이 질문들에서 출발해서 — 정의, 아름다움, 선함 같은 개념들이 현실 너머의 완전한 형태로 존재한다고 주장했어. 그게 이데아야.\n\n정리하면:\n— 소크라테스: "본질이 뭔지 계속 물어야 해"\n— 플라톤: "본질은 이데아 세계에 실제로 존재해"', understanding:'none', branches:[], done:false },
+  { id:7, role:'user', text:'소피스트들이랑 소크라테스의 차이가 뭐야? 둘 다 대화하고 가르치는 것 같은데.' },
+  { id:8, role:'ai', text:'표면적으로는 비슷해 보이지만, 목적과 방법이 완전히 달라.\n\n소피스트:\n— 목적: 설득력 있는 주장을 만드는 기술 전수 (수사학)\n— 돈을 받고 가르침\n— "진리"보다 "효과적인 주장"에 집중\n\n소크라테스:\n— 목적: 진리 자체를 탐구\n— 돈을 받지 않음\n— "모른다"는 걸 출발점으로 삼아 함께 탐구\n\n소크라테스가 소피스트를 비판한 핵심: 그들은 "잘 말하는 법"을 팔지만, 정작 "무엇이 옳은지"는 알지 못한다는 거야.', understanding:'none', branches:[], done:false },
 ];
-const MAIN_REPLIES = [
+
+const V1_BRANCH_REPLIES = [
+  s => '더 들어가면 — 부르디외는 이걸 "이중의 구조화"라고 불러. 외부의 사회 구조가 아비투스를 만들고, 그 아비투스가 다시 실천을 통해 사회 구조를 재생산해. 닭이 먼저냐 달걀이 먼저냐가 아니라, 둘이 서로를 만드는 순환이야.',
+  s => '이게 까다로운 건 무의식적 층위를 다루기 때문이야. "사람은 합리적으로 계산해서 행동한다"는 합리적 선택 이론과 정반대 관점이야. 부르디외에게 대부분의 실천은 계산 없이 감각적으로 일어나.',
+  s => '주요 비판도 여기서 나와. "아비투스가 너무 결정론적이지 않냐"는 거야. 개인의 변화 가능성을 어떻게 설명하냐는 문제인데, 부르디외는 "장의 구조가 바뀌면 아비투스도 긴장 상태에 놓인다"고 답해.',
+];
+
+const V1_MAIN_REPLIES = [
   '좋은 질문이야. 기든스의 "구조화 이론"이랑 비교해보면 흥미해. 기든스도 구조와 행위자의 상호작용을 강조하는데, 부르디외와 달리 행위자의 반성적 능력을 더 높게 봐. 아비투스가 너무 몸에 각인된 것에 집중한다면, 기든스는 사람이 구조를 의식하고 바꿀 수 있다는 측면을 강조해.',
   '그 지점이 마르크스와 부르디외의 차이이기도 해. 마르크스는 계급을 주로 경제적 관계로 봤지만, 부르디외는 문화자본과 사회자본까지 포함한 다차원적 사회 공간으로 계급을 재정의해. 그래서 같은 소득이라도 전혀 다른 사회적 위치를 가질 수 있는 거야.',
 ];
 
-// ═══════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════
+const V2_MAIN_REPLIES = [
+  '덧붙이자면 — 소크라테스가 처형된 이유가 바로 이 변증법 때문이기도 해. 아테네 시민들의 무지를 계속 드러내다보니 많은 적을 만들었어. "청년들을 타락시키고 신을 모독한다"는 죄목이었지만, 본질은 기존 권위에 도전했기 때문이야.',
+  '소크라테스 자신은 아무것도 직접 쓰지 않았다는 것도 중요해. 우리가 아는 소크라테스는 모두 플라톤의 기록을 통해서야. "역사적 소크라테스"와 "플라톤의 소크라테스"를 구분하는 게 철학사의 중요한 논쟁이야.',
+];
 
-let mode = 'after';
+const V2_EXTRA_TERM = '변증법(dialectic)의 어원은 그리스어 "dialektike" — "대화를 통한"이라는 뜻이야. 소크라테스식 변증법은 이후 헤겔의 변증법(정-반-합)과 혼동되는 경우가 많은데, 둘은 달라. 소크라테스 것은 대화로 무지를 드러내는 것, 헤겔 것은 모순을 통해 개념이 발전하는 것이야.';
+const V2_EXTRA_BACKGROUND = '고대 그리스 철학의 맥락을 알면 도움이 돼. 소크라테스 이전 철학자들(탈레스, 헤라클레이토스 등)은 주로 "세계는 무엇으로 만들어졌는가"를 물었어. 소크라테스는 이 방향을 바꿔서 "어떻게 살아야 하는가", "정의란 무엇인가"처럼 인간과 도덕에 집중했어. 이걸 철학사에서 "소크라테스적 전환"이라고 불러. 아테네 민주주의 배경도 중요해 — 당시 직접 민주주의 환경에서 설득력 있는 연설 능력이 매우 중요했고, 소피스트들이 번성한 이유가 바로 그거야.';
+const V2_EXTRA_BOTH = '두 가지 모두 짚어볼게. 먼저 용어: 변증법(dialectic)은 "대화를 통한" 진리 탐구를 의미하고, 산파술(maieutics)은 소크라테스가 스스로를 산파에 비유한 것으로 상대방이 스스로 진리를 이끌어내도록 돕는 방법이야. 그리고 배경으로는 — 당시 아테네 민주주의에서 공개 토론과 설득이 매우 중요한 역할을 했어. 소피스트들이 말 잘하는 기술을 팔았던 것도 그 맥락이야. 소크라테스는 그 환경에서 역으로 "진짜 앎 없는 말솜씨"의 위험성을 지적했던 거야.';
+
+const V2_SUMMARY_TEXT = '지금까지 대화를 정리하면:\n\n① 소크라테스의 "무지의 지" — 자신이 모른다는 것을 아는 것이 탐구의 출발점\n② 변증법과 산파술 — 대화로 상대방 스스로 무지를 인식하게 하는 방법\n③ 플라톤과의 관계 — 이데아론은 플라톤의 것이지만 소크라테스의 "본질" 탐구에서 출발\n④ 소피스트와의 차이 — 소크라테스는 진리 탐구, 소피스트는 효과적 주장 기술에 집중\n\n하지만 어떤 개념을 이해했고 어떤 부분이 아직 불명확한지는 직접 파악해야 해.';
+
+const SB_V1_ITEMS = [
+  { label: '부르디외 — 아비투스와 장 이론', active: true },
+  { label: '푸코의 권력-지식 개념' },
+  { label: '하버마스 — 의사소통적 합리성' },
+  { label: '롤스의 정의론 핵심 개념' },
+  { label: '헤겔 변증법 기초 다지기' },
+];
+const SB_V1_PREV7 = ['사회계약론 — 홉스·로크·루소 비교', '베버의 관료제와 합리화', '뒤르켐의 아노미 개념'];
+const SB_V1_PREV30 = ['아렌트 — 공적 영역과 사적 영역', '마르크스 소외론 이해', '구조주의와 후기구조주의 차이'];
+
+const SB_V2_ITEMS = [
+  { label: '소크라테스 — 무지의 지와 변증법', active: true },
+  { label: '플라톤의 이데아론 이해하기' },
+  { label: '아리스토텔레스 — 형상과 질료' },
+];
+const SB_V2_PREV7 = ['칸트의 순수이성비판 핵심 개념', '헤겔 변증법 기초', '니체 — 허무주의와 초인'];
+const SB_V2_PREV30 = ['데카르트 — 코기토 에르고 숨', '공리주의 — 벤담과 밀 비교'];
+
+// ════════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════════
+
+let currentVersion = 'v1';  // 'v1' | 'v2'
+let mode = 'before';        // 'before' | 'after'
+let learningMode = false;   // v0.2 after only
+let minimapExpanded = true; // true = card, false = pill
+
 let msgs = [];
-let branches = [];
+let branches = [];          // v0.1 after branches
 let branchCnt = 0;
 let activeBranchId = null;
 let tocTimer = null;
 let srcAttachText = '';
-let bReplyIdx = 0, mReplyIdx = 0;
+let bReplyIdx = 0;
+let mReplyIdx = 0;
 
-// ═══════════════════════════════════════════════════════
+// v0.2 understanding popover state
+let activePopoverMsgId = null; // which AI msg has an open popover
+
+// ════════════════════════════════════════════════════════════════
 //  INIT
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function init() {
-  resetState();
-  setMode('before');
   document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('click', e => {
     if (!e.target.closest('#toc') && !e.target.closest('#session-title')) hideToc();
   });
-}
-
-function resetState() {
-  msgs = JSON.parse(JSON.stringify(SEED));
-  branches = []; branchCnt = 0; activeBranchId = null;
-  srcAttachText = ''; bReplyIdx = 0; mReplyIdx = 0;
+  setVersion('v1');
 }
 
 function autoResize(el) {
@@ -494,42 +678,169 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  VERSION SWITCH
+// ════════════════════════════════════════════════════════════════
+
+function setVersion(v) {
+  currentVersion = v;
+  document.getElementById('vtab-v1').classList.toggle('active', v === 'v1');
+  document.getElementById('vtab-v2').classList.toggle('active', v === 'v2');
+  learningMode = false;
+  minimapExpanded = true;
+  // default mode per version
+  setMode('before');
+}
+
+// ════════════════════════════════════════════════════════════════
 //  MODE
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function setMode(m) {
   mode = m;
   resetState();
   clearSrcAttach(true);
-  document.getElementById('main-input').value = '';
+
+  const inp = document.getElementById('main-input');
+  if (inp) { inp.value = ''; inp.style.height = 'auto'; }
   document.getElementById('reply-tip').classList.remove('show');
   document.getElementById('right-panel').classList.remove('open');
+  learningMode = false;
+  minimapExpanded = true;
   hideToc();
 
   document.getElementById('btn-before').classList.toggle('active', m === 'before');
   document.getElementById('btn-after').classList.toggle('active', m === 'after');
-  document.querySelector('body').classList.toggle('before-mode', m === 'before');
-  document.querySelector('body').classList.toggle('after-mode', m === 'after');
 
+  // body class for CSS hooks
+  document.body.className = '';
+  if (m === 'before') document.body.classList.add('before-mode');
+  if (m === 'after')  document.body.classList.add('after-mode');
+  if (m === 'after' && learningMode) document.body.classList.add('learning-on');
+
+  // 학습모드 toggle — only v0.2 after
+  const ltw = document.getElementById('learn-toggle-wrap');
+  ltw.classList.toggle('show', currentVersion === 'v2' && m === 'after');
+  const lb = document.getElementById('learn-toggle-btn');
+  lb.classList.remove('on');
+
+  // summary button — only v0.2 before
+  const sbw = document.getElementById('summary-btn-wrap');
+  sbw.classList.toggle('show', currentVersion === 'v2' && m === 'before');
+
+  // minimap visibility
+  updateMinimapVisibility();
+
+  // hints
   const hints = {
-    before: '답변 텍스트를 <b>드래그</b> → 답글하기 → 전송 → 스크롤로 원본 찾기',
-    after:  '답변에 마우스 올리면 <b>파생 질문 열기</b> 버튼이 나타나요',
+    v1: {
+      before: '답변 텍스트를 <b>드래그</b> → 답글하기 → 전송 → 스크롤로 원본 찾기',
+      after:  '답변에 마우스 올리면 <b>파생 질문 열기</b> 버튼이 나타나요',
+    },
+    v2: {
+      before: '답변 텍스트를 <b>드래그</b>해서 답글하거나, 내용 요약 버튼을 눌러보세요',
+      after:  '학습모드를 켜면 이해도를 기록하고 미니맵으로 학습 현황을 확인할 수 있어요',
+    },
   };
-  document.getElementById('hint-text').innerHTML = hints[m];
+  document.getElementById('hint-text').innerHTML = hints[currentVersion][m];
 
-  renderMsgs(); renderToc(); renderBranch(); updateTopbarTitle();
+  renderSidebar();
+  renderMsgs();
+  renderToc();
+  renderBranch();
+  updateTopbarTitle();
+  renderMinimap();
 }
 
-// ═══════════════════════════════════════════════════════
+function resetState() {
+  if (currentVersion === 'v1') {
+    msgs = JSON.parse(JSON.stringify(SEED_V1));
+  } else {
+    msgs = JSON.parse(JSON.stringify(SEED_V2));
+  }
+  branches = []; branchCnt = 0; activeBranchId = null;
+  srcAttachText = ''; bReplyIdx = 0; mReplyIdx = 0;
+  activePopoverMsgId = null;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  LEARNING MODE TOGGLE
+// ════════════════════════════════════════════════════════════════
+
+function toggleLearningMode() {
+  learningMode = !learningMode;
+  document.getElementById('learn-toggle-btn').classList.toggle('on', learningMode);
+  if (learningMode) {
+    document.body.classList.add('learning-on');
+  } else {
+    document.body.classList.remove('learning-on');
+    activePopoverMsgId = null;
+  }
+  updateMinimapVisibility();
+  renderMsgs();
+  renderMinimap();
+}
+
+function updateMinimapVisibility() {
+  const showMinimap = currentVersion === 'v2' && mode === 'after' && learningMode;
+  const minimap = document.getElementById('minimap');
+  const pill = document.getElementById('minimap-pill');
+  if (!showMinimap) {
+    minimap.classList.remove('visible');
+    pill.classList.remove('visible');
+  } else {
+    if (minimapExpanded) {
+      minimap.classList.add('visible');
+      pill.classList.remove('visible');
+    } else {
+      minimap.classList.remove('visible');
+      pill.classList.add('visible');
+    }
+  }
+}
+
+function collapseMinimap() {
+  minimapExpanded = false;
+  updateMinimapVisibility();
+}
+
+function expandMinimap() {
+  minimapExpanded = true;
+  updateMinimapVisibility();
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SIDEBAR
+// ════════════════════════════════════════════════════════════════
+
+function renderSidebar() {
+  const body = document.getElementById('sb-body');
+  body.innerHTML = '';
+
+  const items = currentVersion === 'v1' ? SB_V1_ITEMS : SB_V2_ITEMS;
+  const prev7 = currentVersion === 'v1' ? SB_V1_PREV7 : SB_V2_PREV7;
+  const prev30 = currentVersion === 'v1' ? SB_V1_PREV30 : SB_V2_PREV30;
+
+  body.innerHTML += `<div class="sb-section-label">최근</div>`;
+  items.forEach(it => {
+    body.innerHTML += `<div class="sb-item${it.active ? ' active' : ''}"><span class="sb-item-txt">${esc(it.label)}</span></div>`;
+  });
+  body.innerHTML += `<div class="sb-section-label" style="margin-top:10px">이전 7일</div>`;
+  prev7.forEach(t => body.innerHTML += `<div class="sb-item"><span class="sb-item-txt">${esc(t)}</span></div>`);
+  body.innerHTML += `<div class="sb-section-label" style="margin-top:10px">이전 30일</div>`;
+  prev30.forEach(t => body.innerHTML += `<div class="sb-item"><span class="sb-item-txt">${esc(t)}</span></div>`);
+}
+
+// ════════════════════════════════════════════════════════════════
 //  RENDER MESSAGES
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function renderMsgs() {
   const el = document.getElementById('messages');
+  const scrollBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   el.innerHTML = '';
   msgs.forEach(m => el.appendChild(makeMsgEl(m)));
-  el.scrollTop = el.scrollHeight;
+  if (scrollBottom) el.scrollTop = el.scrollHeight;
 }
 
 function makeMsgEl(m) {
@@ -542,32 +853,69 @@ function makeMsgEl(m) {
       <span class="msg-lbl">나</span>
       <div class="msg-wrap"><div class="bubble">${fmt(m.text)}</div></div>`;
   } else {
+    // v0.1 after: branch badge
     const hasBranch = m.branches && m.branches.length > 0;
     const badgeClass = m.done ? 'done' : (hasBranch ? 'active' : '');
     const badgeTxt   = m.done ? '✓ 완료'
                      : hasBranch ? `⤷ 파생 질문 ${m.branches.length}개` : '';
+
+    // v0.2 after: understanding bar + popover
+    const isV2After = currentVersion === 'v2' && mode === 'after';
+    const understandingBarHtml = isV2After ? makeUnderstandingBarHtml(m) : '';
+    const popoverHtml = (isV2After && learningMode && activePopoverMsgId === m.id) ? makePopoverHtml(m) : '';
+
     d.innerHTML = `
       <span class="msg-lbl">AI</span>
       <div class="msg-wrap">
-        <div class="bubble">${fmt(m.text)}</div>
-        <button class="branch-open-btn" onclick="openBranch(${m.id})">⤷ 파생 질문 열기</button>
+        <div class="bubble" id="bubble-${m.id}">${fmt(m.text)}</div>
+        ${currentVersion === 'v1' ? `<button class="branch-open-btn" onclick="openBranch(${m.id})">⤷ 파생 질문 열기</button>` : ''}
       </div>
       <div class="msg-actions">
         <button class="msg-action-btn" title="복사">⎘</button>
         <button class="msg-action-btn" title="재생성">↺</button>
         <button class="msg-action-btn" title="더보기">···</button>
       </div>
-      <div class="branch-badge ${badgeClass}" style="${hasBranch ? '' : 'display:none'}">${badgeTxt}</div>`;
+      ${currentVersion === 'v1' ? `<div class="branch-badge ${badgeClass}" style="${hasBranch ? '' : 'display:none'}">${badgeTxt}</div>` : ''}
+      ${understandingBarHtml}
+      ${popoverHtml}`;
   }
   return d;
 }
 
-function fmt(s) { return esc(s).replace(/\n/g,'<br>'); }
+function makeUnderstandingBarHtml(m) {
+  const st = m.understanding || 'none';
+  const uSel = st === 'understood' ? 'sel-understood' : '';
+  const aSel = st === 'unsure' ? 'sel-unsure' : '';
+  const cSel = st === 'confused' ? 'sel-confused' : '';
+  return `
+    <div class="understanding-bar" id="ubar-${m.id}">
+      <button class="understand-btn ${uSel}" onclick="onUnderstand(${m.id},'understood')">✓ 이해함</button>
+      <button class="understand-btn ${aSel}" onclick="onUnderstand(${m.id},'unsure')">△ 애매함</button>
+      <button class="understand-btn ${cSel}" onclick="onUnderstand(${m.id},'confused')">✗ 전혀모름</button>
+    </div>`;
+}
+
+function makePopoverHtml(m) {
+  return `
+    <div class="understand-popover" id="popover-${m.id}">
+      <div class="popover-title">어떤 부분이 어려웠나요?</div>
+      <div class="popover-checks">
+        <div class="popover-check" id="pcheck-term-${m.id}" onclick="togglePopoverCheck(${m.id},'term')">□ 용어의 문제</div>
+        <div class="popover-check" id="pcheck-bg-${m.id}" onclick="togglePopoverCheck(${m.id},'bg')">□ 배경지식의 부족</div>
+      </div>
+      <div class="popover-drag-hint">이해 안 간 부분을 드래그해서 선택하세요</div>
+      <div class="popover-sel-chip" id="pchip-${m.id}"></div>
+      <textarea class="popover-extra" id="pextra-${m.id}" placeholder="추가 질문 (선택사항)" rows="2"></textarea>
+      <button class="popover-submit" onclick="submitPopover(${m.id})">제출하기</button>
+    </div>`;
+}
+
+function fmt(s) { return esc(s).replace(/\n/g, '<br>'); }
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  TOC
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function renderToc() {
   const el = document.getElementById('toc');
@@ -585,29 +933,10 @@ function renderToc() {
   });
 }
 
-function onTocEnter() { if (mode !== 'after' || activeBranchId) return; cancelTocTimer(); showToc(); }
-
-function updateTopbarTitle() {
-  const el = document.getElementById('session-title');
-  if (activeBranchId) {
-    const b = branches.find(x => x.id === activeBranchId);
-    if (!b) return;
-    const aiMsg = msgs.find(m => m.id === b.srcMsgId);
-    const aiIdx = aiMsg ? msgs.indexOf(aiMsg) : -1;
-    const userMsg = aiIdx > 0 ? msgs[aiIdx - 1] : null;
-    const label = userMsg ? userMsg.text.substring(0, 28) + '…' : b.label;
-    el.innerHTML = `<span style="color:var(--branch)">⤷</span> ${esc(label)}`;
-  } else {
-    el.innerHTML = `부르디외 — 아비투스와 장 이론 <span class="arr">▾</span>`;
-  }
-}
-
-function toggleSrcExpand(branchId) {
-  const txt = document.getElementById('src-text-' + branchId);
-  const btn = document.getElementById('src-btn-' + branchId);
-  if (!txt || !btn) return;
-  const expanded = txt.classList.toggle('expanded');
-  btn.textContent = expanded ? '접기 ▴' : '더보기 ▾';
+function onTocEnter() {
+  if (mode !== 'after') return;
+  if (currentVersion === 'v1' && activeBranchId) return;
+  cancelTocTimer(); showToc();
 }
 function onTocLeave() { scheduleTocHide(); }
 function showToc()    { document.getElementById('toc').classList.add('show'); }
@@ -615,18 +944,47 @@ function hideToc()    { document.getElementById('toc').classList.remove('show');
 function scheduleTocHide() { tocTimer = setTimeout(hideToc, 180); }
 function cancelTocTimer()  { if (tocTimer) { clearTimeout(tocTimer); tocTimer = null; } }
 
-function scrollToMsg(id) {
-  const el = document.querySelector(`[data-id="${id}"]`);
-  if (!el) return;
-  el.scrollIntoView({ behavior:'smooth', block:'center' });
-  el.style.transition = 'background .4s';
-  el.style.background = '#EDE9FE';
-  setTimeout(() => { el.style.background = ''; }, 1400);
+function updateTopbarTitle() {
+  const titleText = document.getElementById('session-title-text');
+  const sessionTitle = document.getElementById('session-title');
+  if (currentVersion === 'v1' && activeBranchId) {
+    const b = branches.find(x => x.id === activeBranchId);
+    if (b) {
+      const aiMsg = msgs.find(m => m.id === b.srcMsgId);
+      const aiIdx = aiMsg ? msgs.indexOf(aiMsg) : -1;
+      const userMsg = aiIdx > 0 ? msgs[aiIdx - 1] : null;
+      const label = userMsg ? userMsg.text.substring(0, 28) + '…' : b.label;
+      titleText.innerHTML = `<span style="color:var(--branch)">⤷</span> ${esc(label)}`;
+      return;
+    }
+  }
+  if (currentVersion === 'v1') {
+    titleText.textContent = '부르디외 — 아비투스와 장 이론';
+  } else {
+    titleText.textContent = '소크라테스 — 무지의 지와 변증법';
+  }
+  // re-add arrow span
+  const existing = sessionTitle.querySelector('.arr');
+  if (!existing) {
+    const arr = document.createElement('span');
+    arr.className = 'arr';
+    arr.textContent = '▾';
+    sessionTitle.appendChild(arr);
+  }
 }
 
-// ═══════════════════════════════════════════════════════
-//  BRANCH OPEN
-// ═══════════════════════════════════════════════════════
+function scrollToMsg(id) {
+  const el = document.querySelector(`.msg[data-id="${id}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+  el.classList.remove('highlighted');
+  void el.offsetWidth;
+  el.classList.add('highlighted');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  V0.1 AFTER — BRANCH LOGIC
+// ════════════════════════════════════════════════════════════════
 
 function openBranch(msgId) {
   const srcMsg = msgs.find(m => m.id === msgId);
@@ -648,10 +1006,6 @@ function focusMsg(id) {
   const el = document.querySelector(`.msg[data-id="${id}"]`);
   if (el) { el.classList.add('focused'); el.scrollIntoView({ behavior:'smooth', block:'center' }); }
 }
-
-// ═══════════════════════════════════════════════════════
-//  BRANCH PANEL
-// ═══════════════════════════════════════════════════════
 
 function renderBranch() { renderTabs(); renderBranchBody(); }
 
@@ -731,9 +1085,13 @@ function confirmBranch(id) {
   setTimeout(() => closeTab(id, null), 350);
 }
 
-// ═══════════════════════════════════════════════════════
-//  BRANCH SEND
-// ═══════════════════════════════════════════════════════
+function toggleSrcExpand(branchId) {
+  const txt = document.getElementById('src-text-' + branchId);
+  const btn = document.getElementById('src-btn-' + branchId);
+  if (!txt || !btn) return;
+  const expanded = txt.classList.toggle('expanded');
+  btn.textContent = expanded ? '접기 ▴' : '더보기 ▾';
+}
 
 function sendBranch(id) {
   const b = branches.find(x => x.id === id);
@@ -758,7 +1116,7 @@ function addTypingBranch(container, branchId) {
     if (t) t.remove();
     const b = branches.find(x => x.id === branchId);
     if (!b) return;
-    b.messages.push({ role:'ai', text: BRANCH_REPLIES[bReplyIdx % BRANCH_REPLIES.length](b.srcText) });
+    b.messages.push({ role:'ai', text: V1_BRANCH_REPLIES[bReplyIdx % V1_BRANCH_REPLIES.length](b.srcText) });
     bReplyIdx++;
     renderBranchBody();
   }, 1100);
@@ -768,9 +1126,9 @@ function onBranchKey(e, id) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBranch(id); }
 }
 
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  MAIN SEND
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function sendMain() {
   const inp = document.getElementById('main-input');
@@ -783,6 +1141,7 @@ function sendMain() {
   clearSrcAttach(true);
   msgs.push({ id: uid, role:'user', text: fullTxt });
   renderMsgs();
+  renderToc();
   const mc = document.getElementById('messages');
   const te = document.createElement('div');
   te.className = 'msg ai'; te.id = 'typing-main';
@@ -792,13 +1151,15 @@ function sendMain() {
     const t = document.getElementById('typing-main');
     if (t) t.remove();
     const aid = uid + 1;
-    const reply = MAIN_REPLIES[mReplyIdx % MAIN_REPLIES.length];
+    const replies = currentVersion === 'v1' ? V1_MAIN_REPLIES : V2_MAIN_REPLIES;
+    const reply = replies[mReplyIdx % replies.length];
     mReplyIdx++;
-    const newMsg = { id: aid, role:'ai', text: reply, branches:[], done: false };
+    const newMsg = { id: aid, role:'ai', text: reply, branches:[], done: false, understanding:'none' };
     msgs.push(newMsg);
     renderMsgs(); renderToc();
+    renderMinimap();
     if (mode === 'before') {
-      const ne = document.querySelector(`[data-id="${aid}"]`);
+      const ne = document.querySelector(`.msg[data-id="${aid}"]`);
       if (ne) { ne.classList.add('new-before'); ne.scrollIntoView({ behavior:'smooth', block:'start' }); }
     }
   }, 1400);
@@ -808,11 +1169,31 @@ function onMainKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMain(); }
 }
 
-// ═══════════════════════════════════════════════════════
-//  BEFORE MODE — TEXT SELECTION
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  BEFORE MODE — TEXT SELECTION & REPLY
+// ════════════════════════════════════════════════════════════════
 
 function onMouseUp(e) {
+  // v0.2 after + popover: capture selection within active bubble only
+  if (currentVersion === 'v2' && mode === 'after' && learningMode && activePopoverMsgId !== null) {
+    const sel = window.getSelection();
+    const txt = sel ? sel.toString().trim() : '';
+    if (txt && txt.length >= 2) {
+      const range = sel.getRangeAt(0);
+      const anchor = range.commonAncestorContainer;
+      const bubble = (anchor.nodeType === 3 ? anchor.parentElement : anchor).closest(`#bubble-${activePopoverMsgId}`);
+      if (bubble) {
+        const chip = document.getElementById('pchip-' + activePopoverMsgId);
+        if (chip) {
+          chip.textContent = '선택된 부분: ' + txt.substring(0, 60) + (txt.length > 60 ? '…' : '');
+          chip.classList.add('show');
+          chip.dataset.selectedText = txt;
+        }
+      }
+    }
+    return;
+  }
+
   if (mode !== 'before') return;
   const sel = window.getSelection();
   const txt = sel ? sel.toString().trim() : '';
@@ -839,14 +1220,163 @@ function setSourceAttach(txt) {
   document.getElementById('src-attach-txt').textContent = txt;
   document.getElementById('src-attach').classList.add('show');
 }
+
 function clearSrcAttach(silent) {
   srcAttachText = '';
   document.getElementById('src-attach').classList.remove('show');
+  document.getElementById('src-attach-txt').textContent = '';
 }
 
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  V0.2 BEFORE — SUMMARY
+// ════════════════════════════════════════════════════════════════
+
+function showSummary() {
+  const mc = document.getElementById('messages');
+  // show typing
+  const te = document.createElement('div');
+  te.className = 'msg ai'; te.id = 'typing-summary';
+  te.innerHTML = `<span class="msg-lbl">AI</span><div class="msg-wrap"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
+  mc.appendChild(te); mc.scrollTop = mc.scrollHeight;
+  setTimeout(() => {
+    const t = document.getElementById('typing-summary');
+    if (t) t.remove();
+    const maxId = Math.max(...msgs.map(m => m.id), 0);
+    const aid = maxId + 1;
+    const newMsg = { id: aid, role:'ai', text: V2_SUMMARY_TEXT, branches:[], done: false, understanding:'none', isSummary: true };
+    msgs.push(newMsg);
+    renderMsgs();
+    const ne = document.querySelector(`.msg[data-id="${aid}"]`);
+    if (ne) ne.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 1600);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  V0.2 AFTER — UNDERSTANDING
+// ════════════════════════════════════════════════════════════════
+
+function onUnderstand(msgId, status) {
+  if (!learningMode) return;
+  const m = msgs.find(x => x.id === msgId);
+  if (!m) return;
+
+  if (status === 'understood') {
+    m.understanding = 'understood';
+    // close any open popover for this msg
+    if (activePopoverMsgId === msgId) activePopoverMsgId = null;
+    renderMsgs();
+    renderMinimap();
+  } else {
+    // open popover
+    m.understanding = status;
+    activePopoverMsgId = msgId;
+    renderMsgs();
+    renderMinimap();
+    // scroll to popover
+    const pop = document.getElementById('popover-' + msgId);
+    if (pop) pop.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+}
+
+function togglePopoverCheck(msgId, type) {
+  const el = document.getElementById(`pcheck-${type}-${msgId}`);
+  if (!el) return;
+  const checked = el.classList.toggle('checked');
+  el.textContent = (checked ? '☑' : '□') + (type === 'term' ? ' 용어의 문제' : ' 배경지식의 부족');
+}
+
+function submitPopover(msgId) {
+  const termEl = document.getElementById(`pcheck-term-${msgId}`);
+  const bgEl = document.getElementById(`pcheck-bg-${msgId}`);
+  const hasTerm = termEl && termEl.classList.contains('checked');
+  const hasBg = bgEl && bgEl.classList.contains('checked');
+
+  let reply = '';
+  if (hasTerm && hasBg) reply = V2_EXTRA_BOTH;
+  else if (hasTerm) reply = V2_EXTRA_TERM;
+  else if (hasBg) reply = V2_EXTRA_BACKGROUND;
+  else reply = V2_EXTRA_TERM; // default fallback
+
+  activePopoverMsgId = null;
+  renderMsgs();
+
+  // add typing then new AI msg
+  const mc = document.getElementById('messages');
+  mc.scrollTop = mc.scrollHeight;
+  const te = document.createElement('div');
+  te.className = 'msg ai'; te.id = 'typing-understand';
+  te.innerHTML = `<span class="msg-lbl">AI</span><div class="msg-wrap"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
+  mc.appendChild(te); mc.scrollTop = mc.scrollHeight;
+
+  setTimeout(() => {
+    const t = document.getElementById('typing-understand');
+    if (t) t.remove();
+    const maxId = Math.max(...msgs.map(m => m.id), 0);
+    const aid = maxId + 1;
+    const parentMsg = msgs.find(x => x.id === msgId);
+    const newMsg = { id: aid, role:'ai', text: reply, branches:[], done: false, understanding:'none', parentId: msgId };
+    msgs.push(newMsg);
+    if (parentMsg) {
+      if (!parentMsg.childIds) parentMsg.childIds = [];
+      parentMsg.childIds.push(aid);
+    }
+    renderMsgs();
+    renderMinimap();
+    const ne = document.querySelector(`.msg[data-id="${aid}"]`);
+    if (ne) ne.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 1300);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MINIMAP
+// ════════════════════════════════════════════════════════════════
+
+function renderMinimap() {
+  const nodesEl = document.getElementById('minimap-nodes');
+  nodesEl.innerHTML = '';
+
+  // build list: user questions (with paired AI msg) + child AI msgs
+  const aiMsgs = msgs.filter(m => m.role === 'ai');
+  const userMsgs = msgs.filter(m => m.role === 'user');
+
+  // pair each user msg with next AI msg
+  userMsgs.forEach((um, i) => {
+    const aiMsg = msgs.find(x => x.role === 'ai' && x.id === um.id + 1);
+    if (!aiMsg) return;
+
+    const st = aiMsg.understanding || 'none';
+    const iconMap = { none: '○', understood: '✓', unsure: '△', confused: '✗' };
+    const icon = iconMap[st] || '○';
+
+    const row = document.createElement('div');
+    row.className = 'mm-node';
+    row.onclick = () => scrollToMsg(um.id);
+    row.innerHTML = `<span class="mm-icon ${st}">${icon}</span><span class="mm-txt">${esc(um.text.substring(0, 22))}${um.text.length > 22 ? '…' : ''}</span>`;
+    nodesEl.appendChild(row);
+
+    // child nodes (derived AI responses)
+    if (aiMsg.childIds) {
+      aiMsg.childIds.forEach(cid => {
+        const child = msgs.find(x => x.id === cid);
+        if (!child) return;
+        const cst = child.understanding || 'none';
+        const cicon = iconMap[cst] || '○';
+        const crow = document.createElement('div');
+        crow.className = 'mm-node child';
+        crow.onclick = () => scrollToMsg(cid);
+        crow.innerHTML = `<span class="mm-icon ${cst}">${cicon}</span><span class="mm-txt">↳ 파생 답변</span>`;
+        nodesEl.appendChild(crow);
+      });
+    }
+  });
+
+  updateMinimapVisibility();
+}
+
+// ════════════════════════════════════════════════════════════════
 //  START
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+
 init();
 </script>
 </body>
